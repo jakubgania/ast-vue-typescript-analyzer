@@ -1,0 +1,19 @@
+{
+  "name": "ast-vue-typescript-analyzer",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@babel/types": "^7.27.0",
+    "@types/bun": "latest",
+    "@types/node": "^22.15.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.27.0",
+    "@vue/compiler-dom": "^3.5.13",
+    "@vue/compiler-sfc": "^3.5.13"
+  }
+}
