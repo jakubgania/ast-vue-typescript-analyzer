@@ -22,7 +22,7 @@ interface ExportAnalysis {
   types: string[];
 }
 
-const getAllFiles = async (
+export const getAllFiles = async (
   dir: string,
   extensions: string[] = ['.vue', '.ts'],
   ignore: string[] = ['node_modules', 'dist']
@@ -43,7 +43,7 @@ const getAllFiles = async (
   return results;
 }
 
-const parseExports = (scriptContent: string): ExportAnalysis => {
+export const parseExports = (scriptContent: string): ExportAnalysis => {
   try {
     const plugins: ParserPlugin[] = ['typescript', 'jsx'];
     const ast = babelParse(scriptContent, {
