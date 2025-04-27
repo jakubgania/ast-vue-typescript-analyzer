@@ -5,6 +5,7 @@ import {
   extractTagsFromTemplate,
   extractClassesFromStyle,
   analyzeVueFile,
+  analyzeTsFiles,
 } from "./index.ts";
 import * as fs from 'fs/promises';
 import path from 'path';
@@ -252,6 +253,44 @@ describe('Project Analyzer', () => {
       expect(result).toEqual({
         imports: [],
         templateTags: []
+      });
+      expect(console.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('analyzeTsFiles', () => {
+    it('should analyze ts file correctly', async () => {
+      const mockContent = `
+        import { test } from './test';
+        export function example() {}
+      `;
+      (fs.readFile as jest.Mock).mockResolvedValue(mockContent);
+
+      const result = await analyzeTsFiles('/test.ts');
+      console.log('Result - analyze ts file: ', result);
+      expect(result).toEqual({
+        imports: [{ importedItem: 'test', source: './test' }],
+        exports: {
+          functions: ['example'],
+          constants: [],
+          types: []
+        }
+      });
+    });
+
+    it('should handle ts file errors', async () => {
+      (fs.readFile as jest.Mock).mockRejectedValue(new Error('Read error'));
+      spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await analyzeTsFiles('/test.ts');
+      console.log('Result - ts file error ', result);
+      expect(result).toEqual({
+        imports: [],
+        exports: {
+          functions: [],
+          constants: [],
+          types: []
+        }
       });
       expect(console.error).toHaveBeenCalled();
     });

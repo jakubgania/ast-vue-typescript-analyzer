@@ -25,7 +25,8 @@ interface ExportAnalysis {
 export const getAllFiles = async (
   dir: string,
   extensions: string[] = ['.vue', '.ts'],
-  ignore: string[] = ['node_modules', 'dist']
+  igonrePaths: string[] = ['node_modules', 'dist'],
+  ignoreFiles: string[] = ['index.ts', 'analyzer.test.ts']
 ): Promise<string[]> => {
   let results: string[] = [];
   const files = await fs.readdir(dir, { withFileTypes: true });
@@ -33,10 +34,12 @@ export const getAllFiles = async (
   for (const file of files) {
     const fullPath = path.join(dir, file.name);
     if (file.isDirectory()) {
-      if (!ignore.includes(file.name)) {
-        results = results.concat(await getAllFiles(fullPath, extensions, ignore));
+      if (!igonrePaths.includes(file.name)) {
+        results = results.concat(
+          await getAllFiles(fullPath, extensions, igonrePaths, ignoreFiles)
+        );
       }
-    } else if (extensions.includes(path.extname(file.name))) {
+    } else if (extensions.includes(path.extname(file.name)) && !ignoreFiles.includes(file.name)) {
       results.push(fullPath);
     }
   }
@@ -230,7 +233,7 @@ export const analyzeVueFile = async (filePath: string): Promise<{ imports: Impor
   }
 }
 
-const analyzeTsFiles = async (filePath: string): Promise<{ imports: ImportItem[]; exports: ExportAnalysis }> => {
+export const analyzeTsFiles = async (filePath: string): Promise<{ imports: ImportItem[]; exports: ExportAnalysis }> => {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     const imports = parseImports(content);
