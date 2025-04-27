@@ -126,7 +126,7 @@ export const parseImports = (scriptContent: string): ImportItem[] => {
   }
 }
 
-const extractTagsFromTemplate = (templateContent: string): string[] => {
+export const extractTagsFromTemplate = (templateContent: string): string[] => {
   const tags = new Set<string>();
   const ast = parseTemplate(templateContent);
 
@@ -152,7 +152,7 @@ interface Selector {
   name: string;
 }
 
-const extractClassesFromStyle = (styleBlocks: StyleBlock[]): Selector[] => {
+export const extractClassesFromStyle = (styleBlocks: StyleBlock[]): Selector[] => {
   const selectorSet = new Set<string>();
 
   styleBlocks.forEach((block) => {
@@ -202,7 +202,7 @@ const extractClassesFromStyle = (styleBlocks: StyleBlock[]): Selector[] => {
   });
 }
 
-const analyzeVueFile = async (filePath: string): Promise<{ imports: ImportItem[]; templateTags: string[] }> => {
+export const analyzeVueFile = async (filePath: string): Promise<{ imports: ImportItem[]; templateTags: string[] }> => {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     const { descriptor } = vueParse(content);

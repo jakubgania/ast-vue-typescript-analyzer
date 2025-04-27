@@ -1,11 +1,32 @@
-import { getAllFiles, parseExports, parseImports } from "./index.ts";
+import {
+  getAllFiles,
+  parseExports,
+  parseImports,
+  extractTagsFromTemplate,
+  extractClassesFromStyle,
+  analyzeVueFile,
+} from "./index.ts";
 import * as fs from 'fs/promises';
 import path from 'path';
-import { beforeEach, describe, expect, it, jest, mock, spyOn } from "bun:test";
+import { parse as vueParse } from '@vue/compiler-sfc';
+import {
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+  mock,
+  spyOn
+} from "bun:test";
 
 mock.module('fs/promises', () => ({
-  readdir: jest.fn().mockResolvedValue([])
-}))
+  readdir: jest.fn().mockResolvedValue([]),
+  readFile: jest.fn(),
+}));
+
+mock.module('@vue/compiler-sfc', () => ({
+  parse: jest.fn(),
+}));
 
 describe('Project Analyzer', () => {
   beforeEach(() => {
@@ -143,5 +164,96 @@ describe('Project Analyzer', () => {
       expect(result).toEqual([]);
       expect(console.error).toHaveBeenCalled();
     });
-  })
+  });
+
+  describe('extractTagsFromTemplate', () => {
+    it('should extract template tags', () => {
+      const template = `
+        <div>
+          <span class="test">Hello</span>
+          <custom-component />
+          <example-component></example-component>
+        </div>
+      `;
+      const result = extractTagsFromTemplate(template);
+      console.log('Result - extractTagsFromTemplate: ', result);
+      expect(result).toEqual(['div', 'span', 'custom-component', 'example-component']);
+    });
+
+    it('should handle empty template', () => {
+      const result = extractTagsFromTemplate('');
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('extractClassesFromStyle', () => {
+    it('should extract selectors from style block', () => {
+      const styleBlocks = [{
+        content: `
+          .test-class { color: red }
+          div, span { margin: 10px }
+          .another-class:hover { padding: 5px }
+        `
+      }];
+      const result = extractClassesFromStyle(styleBlocks);
+      console.log('Result - extractClassesFromStyle: ', result);
+      expect(result).toContainEqual({ type: 'class', name: '.test-class' });
+      expect(result).toContainEqual({ type: 'element', name: 'div' });
+      expect(result).toContainEqual({ type: 'element', name: 'span' });
+      // expect(result).toContainEqual({ type: 'pseudo', name: '.another-class:hover' });
+    });
+
+    it('shoudl handle empty style blocks', () => {
+      const result = extractClassesFromStyle([]);
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('analyzeVueFile', () => {
+    it('should analyze vue file correctly', async () => {
+      const mockContent = 'mock vue content';
+      const mockDescriptor = {
+        script: { content: 'import { ref } from "vue";' },
+        template: { content: '<div><span>Test</span></div>' },
+        styles: [{ content: '.test { color: red; }' }]
+      };
+      (fs.readFile as jest.Mock).mockResolvedValue(mockContent);
+      (vueParse as jest.Mock).mockReturnValue({ descriptor: mockDescriptor });
+
+      const result = await analyzeVueFile('/test.vue');
+      console.log('Result - analyzeVueFile: ', result);
+      expect(result).toEqual({
+        imports: [{ importedItem: 'ref', source: 'vue' }],
+        templateTags: ['div', 'span']
+      });
+    });
+
+    it('should handle vue file with no script or template', async () => {
+      const mockDescriptor = {
+        script: null,
+        template: null,
+        styles: []
+      };
+      (fs.readFile as jest.Mock).mockRejectedValue('mock content');
+      (vueParse as jest.Mock).mockReturnValue({ descriptor: mockDescriptor });
+
+      const result = await analyzeVueFile('/test.vue');
+      expect(result).toEqual({
+        imports: [],
+        templateTags: []
+      });
+    });
+
+    it('should handle vue file errors', async () => {
+      (fs.readFile as jest.Mock).mockRejectedValue(new Error('Read error'));
+      spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await analyzeVueFile('/test.vue');
+      expect(result).toEqual({
+        imports: [],
+        templateTags: []
+      });
+      expect(console.error).toHaveBeenCalled();
+    });
+  });
 });
