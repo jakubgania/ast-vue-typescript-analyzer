@@ -1,7 +1,7 @@
-import { getAllFiles, parseExports } from "./index.ts";
+import { getAllFiles, parseExports, parseImports } from "./index.ts";
 import * as fs from 'fs/promises';
 import path from 'path';
-import { beforeEach, describe, expect, it, jest, mock } from "bun:test";
+import { beforeEach, describe, expect, it, jest, mock, spyOn } from "bun:test";
 
 mock.module('fs/promises', () => ({
   readdir: jest.fn().mockResolvedValue([])
@@ -88,6 +88,60 @@ describe('Project Analyzer', () => {
         constants: [],
         types: [],
       });
+    });
+
+    it('should parse type exports', () => {
+      const script = `
+        export type TestType = string;
+        export interface TestInterface {}
+      `;
+      const result = parseExports(script);
+      console.log("Result - parseExports: ", result);
+      expect(result).toEqual({
+        functions: [],
+        constants: [],
+        types: ['TestType', 'TestInterface']
+      });
+    });
+
+    it('should handle parse errors', () => {
+      const script = 'invalid syntax !@#$';
+      spyOn(console, 'error').mockImplementation(() => {});
+      const result = parseExports(script);
+      expect(result).toEqual({
+        functions: [],
+        constants: [],
+        types: [],
+      });
+      expect(console.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('parseImports', () => {
+    it('should parse import declarations', () => {
+      const script = `
+        import { Component } from 'vue';
+        import * as utils from './utils';
+      `;
+      const result = parseImports(script);
+      expect(result).toEqual([
+        { importedItem: 'Component', source: 'vue' },
+        { importedItem: 'utils', source: './utils' },
+      ]);
+    });
+
+    it('should handle empty imports', () => {
+      const script = '';
+      const result = parseImports(script);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle parse errors', () => {
+      const script = 'import invalid syntax';
+      spyOn(console, 'error').mockImplementation(() => {});
+      const result = parseImports(script);
+      expect(result).toEqual([]);
+      expect(console.error).toHaveBeenCalled();
     });
   })
 });

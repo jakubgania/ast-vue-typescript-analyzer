@@ -99,7 +99,7 @@ export const parseExports = (scriptContent: string): ExportAnalysis => {
   }
 }
 
-const parseImports = (scriptContent: string): ImportItem[] => {
+export const parseImports = (scriptContent: string): ImportItem[] => {
   try {
     const plugins: ParserPlugin[] = ['typescript', 'jsx'];
     const ast = babelParse(scriptContent, {
