@@ -11,6 +11,16 @@ interface FileAnalysis {
   templateTags: string[];
   exports?: ExportAnalysis;
   props: PropItem[];
+  classes: Selector[];
+}
+
+interface StyleBlock {
+  content: string;
+}
+
+interface Selector {
+  type: 'class' | 'element' | 'pseudo' | 'other';
+  name: string;
 }
 
 interface ImportItem {
@@ -173,15 +183,6 @@ export const extractTagsFromTemplate = (templateContent: string): string[] => {
   return [...tags];
 }
 
-interface StyleBlock {
-  content: string;
-}
-
-interface Selector {
-  type: 'class' | 'element' | 'pseudo' | 'other';
-  name: string;
-}
-
 export const extractClassesFromStyle = (styleBlocks: StyleBlock[]): Selector[] => {
   const selectorSet = new Set<string>();
 
@@ -241,13 +242,10 @@ export const parseProps = (scriptContent: string): PropItem[] => {
       sourceType: 'module',
       plugins,
     });
-
     const props: PropItem[] = [];
 
-    console.log("LOG 0000")
     ast.program.body.forEach((node) => {
       if (node.type === 'VariableDeclaration') {
-        console.log("LOG 1000")
         node.declarations.forEach((decl) => {
           if (
             decl.init &&
@@ -259,7 +257,6 @@ export const parseProps = (scriptContent: string): PropItem[] => {
             if (typeArg && typeArg.type === 'TSTypeLiteral') {
               typeArg.members.forEach((member) => {
                 if (member.type === 'TSPropertySignature' && member.key.type === 'Identifier') {
-                  let p = member.typeAnnotation ? scriptContent.slice(member.typeAnnotation.start!, member.typeAnnotation.end!) : undefined
                   props.push({
                     name: member.key.name,
                     type: member.typeAnnotation ? scriptContent.slice(member.typeAnnotation.start!, member.typeAnnotation.end!) : undefined,
@@ -270,6 +267,26 @@ export const parseProps = (scriptContent: string): PropItem[] => {
             }
           }
         });
+      } else if (node.type === 'ExpressionStatement') {
+        const expr = node.expression;
+        if (
+          expr.type === 'CallExpression' &&
+          expr.callee.type === 'Identifier' &&
+          expr.callee.name === 'defineProps'
+        ) {
+          const typeArg = expr.typeParameters?.params[0];
+          if (typeArg && typeArg.type === 'TSTypeLiteral') {
+            typeArg.members.forEach((member) => {
+              if (member.type === 'TSPropertySignature' && member.key.type === 'Identifier') {
+                props.push({
+                  name: member.key.name,
+                  type: member.typeAnnotation ? scriptContent.slice(member.typeAnnotation.start!, member.typeAnnotation.end!) : undefined,
+                  required: !(member.optional ?? false),
+                });
+              }
+            });
+          }
+        }
       }
     });
 
@@ -280,7 +297,7 @@ export const parseProps = (scriptContent: string): PropItem[] => {
   }
 }
 
-export const analyzeVueFile = async (filePath: string): Promise<{ imports: ImportItem[]; templateTags: string[], props: PropItem[] }> => {
+export const analyzeVueFile = async (filePath: string): Promise<{ imports: ImportItem[]; templateTags: string[], props: PropItem[], styleClasses: Selector[] }> => {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     const { descriptor } = vueParse(content);
@@ -293,13 +310,12 @@ export const analyzeVueFile = async (filePath: string): Promise<{ imports: Impor
       : [];
     const imports = scriptContent ? parseImports(scriptContent) : [];
     const props = scriptContent ? parseProps(scriptContent) : [];
-    
-    console.log(styleClasses);
 
     return {
       templateTags,
       imports,
       props,
+      styleClasses,
     }
   } catch (error) {
     console.error(`Error analyzing Vue file ${filePath}:`, (error as Error).message);
@@ -307,6 +323,7 @@ export const analyzeVueFile = async (filePath: string): Promise<{ imports: Impor
       imports: [],
       templateTags: [],
       props: [],
+      styleClasses: [],
     };
   }
 }
@@ -345,13 +362,15 @@ const analyzeProject = async (projectDir: string): Promise<FileAnalysis[]> => {
       imports: [],
       templateTags: [],
       props: [],
+      classes: []
     };
 
     if (fileExtension === ".vue") {
-      const { imports, templateTags, props } = await analyzeVueFile(file);
+      const { imports, templateTags, props, styleClasses } = await analyzeVueFile(file);
       analysis.imports = imports;
       analysis.templateTags = templateTags;
       analysis.props = props;
+      analysis.classes = styleClasses;
     }
 
     if (fileExtension === ".ts") {
