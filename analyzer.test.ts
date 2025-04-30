@@ -95,7 +95,8 @@ describe('Project Analyzer', () => {
       expect(results).toEqual({
         functions: ['testFunc', 'arrowFunc'],
         constants: [],
-        types: []
+        types: [],
+        classes: []
       });
     });
 
@@ -109,6 +110,7 @@ describe('Project Analyzer', () => {
         functions: ['default'],
         constants: [],
         types: [],
+        classes: []
       });
     });
 
@@ -122,7 +124,8 @@ describe('Project Analyzer', () => {
       expect(result).toEqual({
         functions: [],
         constants: [],
-        types: ['TestType', 'TestInterface']
+        types: ['TestType', 'TestInterface'],
+        classes: []
       });
     });
 
@@ -134,6 +137,7 @@ describe('Project Analyzer', () => {
         functions: [],
         constants: [],
         types: [],
+        classes: []
       });
       expect(console.error).toHaveBeenCalled();
     });
@@ -225,7 +229,8 @@ describe('Project Analyzer', () => {
       console.log('Result - analyzeVueFile: ', result);
       expect(result).toEqual({
         imports: [{ importedItem: 'ref', source: 'vue' }],
-        templateTags: ['div', 'span']
+        templateTags: ['div', 'span'],
+        props: [],
       });
     });
 
@@ -241,7 +246,8 @@ describe('Project Analyzer', () => {
       const result = await analyzeVueFile('/test.vue');
       expect(result).toEqual({
         imports: [],
-        templateTags: []
+        templateTags: [],
+        props: [],
       });
     });
 
@@ -252,7 +258,8 @@ describe('Project Analyzer', () => {
       const result = await analyzeVueFile('/test.vue');
       expect(result).toEqual({
         imports: [],
-        templateTags: []
+        templateTags: [],
+        props: [],
       });
       expect(console.error).toHaveBeenCalled();
     });
@@ -273,7 +280,8 @@ describe('Project Analyzer', () => {
         exports: {
           functions: ['example'],
           constants: [],
-          types: []
+          types: [],
+          classes: []
         }
       });
     });
@@ -289,7 +297,8 @@ describe('Project Analyzer', () => {
         exports: {
           functions: [],
           constants: [],
-          types: []
+          types: [],
+          classes: []
         }
       });
       expect(console.error).toHaveBeenCalled();

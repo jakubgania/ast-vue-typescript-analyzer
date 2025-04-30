@@ -2,6 +2,7 @@ import * as fs from "fs/promises";
 import { parse as vueParse } from '@vue/compiler-sfc';
 import { parse as parseTemplate, type Node as VueNode } from '@vue/compiler-dom';
 import { parse as babelParse, type ParserPlugin } from '@babel/parser';
+// import type { Node } from '@babel/types';
 import path from "path";
 
 interface FileAnalysis {
@@ -9,6 +10,7 @@ interface FileAnalysis {
   imports: ImportItem[];
   templateTags: string[];
   exports?: ExportAnalysis;
+  props: PropItem[];
 }
 
 interface ImportItem {
@@ -16,10 +18,19 @@ interface ImportItem {
   source: string;
 }
 
+interface PropItem {
+  name: string;
+  type?: string;
+  required?: boolean;
+  default?: string;
+  description?: string;
+}
+
 interface ExportAnalysis {
   functions: string[];
   constants: string[];
   types: string[];
+  classes: string[];
 }
 
 export const getAllFiles = async (
@@ -48,7 +59,11 @@ export const getAllFiles = async (
 
 export const parseExports = (scriptContent: string): ExportAnalysis => {
   try {
-    const plugins: ParserPlugin[] = ['typescript', 'jsx'];
+    const plugins: ParserPlugin[] = [
+      'typescript',
+      'jsx',
+      ['decorators', { decoratorsBeforeExport: true }],
+    ];
     const ast = babelParse(scriptContent, {
       sourceType: 'module',
       plugins,
@@ -58,6 +73,7 @@ export const parseExports = (scriptContent: string): ExportAnalysis => {
       functions: [],
       constants: [],
       types: [],
+      classes: [],
     };
 
     ast.program.body.forEach((node) => {
@@ -77,6 +93,8 @@ export const parseExports = (scriptContent: string): ExportAnalysis => {
           });
         } else if ((nodeDeclaration.type === 'TSTypeAliasDeclaration' || nodeDeclaration.type === 'TSInterfaceDeclaration') && nodeDeclaration.id) {
           exports.types.push(nodeDeclaration.id.name);
+        } else if (nodeDeclaration.type === 'ClassDeclaration' && nodeDeclaration.id) {
+          exports.classes.push(nodeDeclaration.id.name);
         }
       } else if (node.type === 'ExportDefaultDeclaration') {
         if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {
@@ -87,6 +105,10 @@ export const parseExports = (scriptContent: string): ExportAnalysis => {
           node.declaration.type === 'ArrowFunctionExpression' || node.declaration.type === 'FunctionExpression'
         ) {
           exports.functions.push('default');
+        } else if (node.declaration.type === 'ClassDeclaration' && node.declaration.id) {
+          exports.classes.push(node.declaration.id.name);
+        } else if (node.declaration.type === 'ClassExpression') {
+          exports.classes.push('default');
         }
       }
     });
@@ -98,13 +120,18 @@ export const parseExports = (scriptContent: string): ExportAnalysis => {
       functions: [],
       constants: [],
       types: [],
+      classes: [],
     };
   }
 }
 
 export const parseImports = (scriptContent: string): ImportItem[] => {
   try {
-    const plugins: ParserPlugin[] = ['typescript', 'jsx'];
+    const plugins: ParserPlugin[] = [
+      'typescript',
+      'jsx',
+      ['decorators', { decoratorsBeforeExport: true }]
+    ];
     const ast = babelParse(scriptContent, {
       sourceType: 'module',
       plugins,
@@ -205,7 +232,55 @@ export const extractClassesFromStyle = (styleBlocks: StyleBlock[]): Selector[] =
   });
 }
 
-export const analyzeVueFile = async (filePath: string): Promise<{ imports: ImportItem[]; templateTags: string[] }> => {
+export const parseProps = (scriptContent: string): PropItem[] => {
+  try {
+    const plugins: ParserPlugin[] = [
+      'typescript',
+    ];
+    const ast = babelParse(scriptContent, {
+      sourceType: 'module',
+      plugins,
+    });
+
+    const props: PropItem[] = [];
+
+    console.log("LOG 0000")
+    ast.program.body.forEach((node) => {
+      if (node.type === 'VariableDeclaration') {
+        console.log("LOG 1000")
+        node.declarations.forEach((decl) => {
+          if (
+            decl.init &&
+            decl.init.type === 'CallExpression' &&
+            decl.init.callee.type === 'Identifier' &&
+            decl.init.callee.name === 'defineProps'
+          ) {
+            const typeArg = decl.init.typeParameters?.params[0];
+            if (typeArg && typeArg.type === 'TSTypeLiteral') {
+              typeArg.members.forEach((member) => {
+                if (member.type === 'TSPropertySignature' && member.key.type === 'Identifier') {
+                  let p = member.typeAnnotation ? scriptContent.slice(member.typeAnnotation.start!, member.typeAnnotation.end!) : undefined
+                  props.push({
+                    name: member.key.name,
+                    type: member.typeAnnotation ? scriptContent.slice(member.typeAnnotation.start!, member.typeAnnotation.end!) : undefined,
+                    required: !(member.optional ?? false),
+                  });
+                }
+              });
+            }
+          }
+        });
+      }
+    });
+
+    return props;
+  } catch (error) {
+    console.log('Error parsing props:', (error as Error).message);
+    return [];
+  }
+}
+
+export const analyzeVueFile = async (filePath: string): Promise<{ imports: ImportItem[]; templateTags: string[], props: PropItem[] }> => {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     const { descriptor } = vueParse(content);
@@ -217,18 +292,21 @@ export const analyzeVueFile = async (filePath: string): Promise<{ imports: Impor
       ? extractClassesFromStyle(descriptor.styles)
       : [];
     const imports = scriptContent ? parseImports(scriptContent) : [];
+    const props = scriptContent ? parseProps(scriptContent) : [];
     
     console.log(styleClasses);
 
     return {
       templateTags,
       imports,
+      props,
     }
   } catch (error) {
     console.error(`Error analyzing Vue file ${filePath}:`, (error as Error).message);
     return {
       imports: [],
-      templateTags: []
+      templateTags: [],
+      props: [],
     };
   }
 }
@@ -250,6 +328,7 @@ export const analyzeTsFiles = async (filePath: string): Promise<{ imports: Impor
         functions: [],
         constants: [],
         types: [],
+        classes: [],
       }
     };
   }
@@ -265,12 +344,14 @@ const analyzeProject = async (projectDir: string): Promise<FileAnalysis[]> => {
       file: path.relative(projectDir, file),
       imports: [],
       templateTags: [],
+      props: [],
     };
 
     if (fileExtension === ".vue") {
-      const { imports, templateTags } = await analyzeVueFile(file);
+      const { imports, templateTags, props } = await analyzeVueFile(file);
       analysis.imports = imports;
       analysis.templateTags = templateTags;
+      analysis.props = props;
     }
 
     if (fileExtension === ".ts") {
@@ -287,7 +368,8 @@ const analyzeProject = async (projectDir: string): Promise<FileAnalysis[]> => {
 
 const main = async () => {
   console.log("script start")
-  let projectDir = process.cwd();
+  // let projectDir = process.cwd();
+  let projectDir = '/Users/jakub/dev/weather-app/src/components/';
   // projectDir = projectDir + '/components';
   console.log("Project dir: ", projectDir);
   console.log("Analyzing files...");
