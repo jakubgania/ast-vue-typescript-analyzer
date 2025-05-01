@@ -231,6 +231,7 @@ describe('Project Analyzer', () => {
         imports: [{ importedItem: 'ref', source: 'vue' }],
         templateTags: ['div', 'span'],
         props: [],
+        styleClasses: [],
       });
     });
 
@@ -248,6 +249,7 @@ describe('Project Analyzer', () => {
         imports: [],
         templateTags: [],
         props: [],
+        styleClasses: []
       });
     });
 
@@ -260,6 +262,7 @@ describe('Project Analyzer', () => {
         imports: [],
         templateTags: [],
         props: [],
+        styleClasses: []
       });
       expect(console.error).toHaveBeenCalled();
     });

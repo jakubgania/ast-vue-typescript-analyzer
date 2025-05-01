@@ -2,7 +2,7 @@ import * as fs from "fs/promises";
 import { parse as vueParse } from '@vue/compiler-sfc';
 import { parse as parseTemplate, type Node as VueNode } from '@vue/compiler-dom';
 import { parse as babelParse, type ParserPlugin } from '@babel/parser';
-// import type { Node } from '@babel/types';
+import type { Node } from '@babel/types';
 import path from "path";
 
 interface FileAnalysis {
@@ -233,6 +233,80 @@ export const extractClassesFromStyle = (styleBlocks: StyleBlock[]): Selector[] =
   });
 }
 
+export const getTypeAnnotation = (node: Node, scriptContent: string): string | undefined => {
+  if (!node) return undefined;
+
+  switch (node.type) {
+    case 'TSTypeAnnotation':
+      return getTypeAnnotation(node.typeAnnotation, scriptContent);
+    case 'TSNumberKeyword':
+      return 'number';
+    case 'TSStringKeyword':
+      return 'string';
+    case 'TSBooleanKeyword':
+      return 'boolean';
+    case 'TSVoidKeyword':
+      return 'void';
+    case 'TSNullKeyword':
+      return 'null';
+    case 'TSAnyKeyword':
+      return 'any';
+    case 'TSArrayType':
+      return `${getTypeAnnotation(node.elementType, scriptContent)}[]`;
+    case 'TSFunctionType':
+      const params = node.parameters
+        .map((param) => {
+          if (param.type === 'Identifier' && param.typeAnnotation) {
+            return `${param.name}: ${getTypeAnnotation(param.typeAnnotation, scriptContent)}`;
+          }
+          // return param.name || ''
+        })
+        .join(', ');
+      const returnType = getTypeAnnotation(node.typeAnnotation!, scriptContent);
+      return `(${params}) => ${returnType}`;
+    case 'TSLiteralType':
+      if ('value' in node.literal) {
+        return JSON.stringify(node.literal.value);
+      }
+      return scriptContent.slice(node.start!, node.end!);
+    case 'TSTypeReference':
+      if (node.typeName.type === 'Identifier') {
+        const typeName = node.typeName.name;
+        if (node.typeParameters) {
+          const params = node.typeParameters.params
+            .map((param) => getTypeAnnotation(param, scriptContent))
+            .join(', ');
+          return `${typeName}<${params}>`;
+        }
+        return typeName;
+      }
+      return scriptContent.slice(node.start!, node.end!);
+    case 'TSUnionType':
+      return node.types
+        .map((type) => getTypeAnnotation(type, scriptContent))
+        .join(' | ');
+    case 'TSIntersectionType':
+        return node.types
+          .map((type) => getTypeAnnotation(type, scriptContent))
+          .join(' & ');
+    case 'TSTypeLiteral': {
+      const members = node.members
+        .map((member) => {
+          if (member.type === 'TSPropertySignature' && member.key.type === 'Identifier') {
+            const type = getTypeAnnotation(member.typeAnnotation!, scriptContent);
+            return `${member.key.name}${member.optional ? '?' : ''}: ${type}`;
+          }
+          return '';
+        })
+        .filter(Boolean)
+        .join('; ');
+      return `{ ${members} }`;
+    }
+    default:
+      return scriptContent.slice(node.start!, node.end!);
+  }
+}
+
 export const parseProps = (scriptContent: string): PropItem[] => {
   try {
     const plugins: ParserPlugin[] = [
@@ -257,6 +331,9 @@ export const parseProps = (scriptContent: string): PropItem[] => {
             if (typeArg && typeArg.type === 'TSTypeLiteral') {
               typeArg.members.forEach((member) => {
                 if (member.type === 'TSPropertySignature' && member.key.type === 'Identifier') {
+                  console.log("TYPE: ", member.typeAnnotation
+                    ? getTypeAnnotation(member.typeAnnotation, scriptContent)
+                    : undefined)
                   props.push({
                     name: member.key.name,
                     type: member.typeAnnotation ? scriptContent.slice(member.typeAnnotation.start!, member.typeAnnotation.end!) : undefined,
