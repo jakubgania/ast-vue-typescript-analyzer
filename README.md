@@ -10,6 +10,11 @@ This application serves as:
 2. **Type safety validation** - Proves all components compile without TypeScript error
 3. **Interactive examples** - Test component functionality and interactions
 
+## What is AST?
+
+**AST (Abstract Syntax Tree)** is a tree representation of the syntactic structure of source code.  
+It allows tools to analyze, transform, and understand code by working with its logical structure rather than raw text.
+
 ## Quick Start
 
 ### Install Dependencies
