@@ -43,6 +43,14 @@ interface ExportAnalysis {
   classes: string[];
 }
 
+/**
+ * Recursively gets all files with specified extensions from a directory
+ * @param dir - Directory to search
+ * @param extensions - File extensions to include (e.g., ['.vue', '.ts'])
+ * @param ignorePaths - Directory names to ignore (e.g., ['node_modules', 'dist'])
+ * @param ignoreFiles - File names to ignore (e.g., ['index.ts'])
+ * @returns Array of file paths
+ */
 export const getAllFiles = async (
   dir: string,
   extensions: string[] = ['.vue', '.ts'],
@@ -67,6 +75,11 @@ export const getAllFiles = async (
   return results;
 }
 
+/**
+ * Parses export declarations from TypeScript/JavaScript code
+ * @param scriptContent - Source code to parse
+ * @returns Categorized exports (functions, constants, types, classes)
+ */
 export const parseExports = (scriptContent: string): ExportAnalysis => {
   try {
     const plugins: ParserPlugin[] = [
@@ -125,7 +138,10 @@ export const parseExports = (scriptContent: string): ExportAnalysis => {
 
     return exports;
   } catch (error) {
-    console.error('Error parsing exports:', (error as Error).message);
+    console.error('❌ Error parsing exports:', (error as Error).message);
+    if (process.env.DEBUG) {
+      console.error('Stack trace:', error);
+    }
     return {
       functions: [],
       constants: [],
@@ -135,6 +151,11 @@ export const parseExports = (scriptContent: string): ExportAnalysis => {
   }
 }
 
+/**
+ * Parses import declarations from TypeScript/JavaScript code
+ * @param scriptContent - Source code to parse
+ * @returns Array of import items with their sources
+ */
 export const parseImports = (scriptContent: string): ImportItem[] => {
   try {
     const plugins: ParserPlugin[] = [
@@ -161,11 +182,19 @@ export const parseImports = (scriptContent: string): ImportItem[] => {
 
     return imports;
   } catch (error) {
-    console.error('Error parsing imports:', (error as Error).message);
+    console.error('❌ Error parsing imports:', (error as Error).message);
+    if (process.env.DEBUG) {
+      console.error('Stack trace:', error);
+    }
     return [];
   }
 }
 
+/**
+ * Extracts HTML tags from Vue template
+ * @param templateContent - Vue template HTML content
+ * @returns Array of unique tag names
+ */
 export const extractTagsFromTemplate = (templateContent: string): string[] => {
   const tags = new Set<string>();
   const ast = parseTemplate(templateContent);
@@ -183,6 +212,11 @@ export const extractTagsFromTemplate = (templateContent: string): string[] => {
   return [...tags];
 }
 
+/**
+ * Extracts CSS selectors from style blocks
+ * @param styleBlocks - Array of style blocks from Vue SFC
+ * @returns Array of categorized selectors
+ */
 export const extractClassesFromStyle = (styleBlocks: StyleBlock[]): Selector[] => {
   const selectorSet = new Set<string>();
 
@@ -233,6 +267,12 @@ export const extractClassesFromStyle = (styleBlocks: StyleBlock[]): Selector[] =
   });
 }
 
+/**
+ * Converts TypeScript AST type nodes to string representation
+ * @param node - TypeScript AST node
+ * @param scriptContent - Original source code (for slicing when needed)
+ * @returns String representation of the type
+ */
 export const getTypeAnnotation = (node: Node, scriptContent: string): string | undefined => {
   if (!node) return undefined;
 
@@ -249,8 +289,20 @@ export const getTypeAnnotation = (node: Node, scriptContent: string): string | u
       return 'void';
     case 'TSNullKeyword':
       return 'null';
+    case 'TSUndefinedKeyword':
+      return 'undefined';
     case 'TSAnyKeyword':
       return 'any';
+    case 'TSUnknownKeyword':
+      return 'unknown';
+    case 'TSNeverKeyword':
+      return 'never';
+    case 'TSObjectKeyword':
+      return 'object';
+    case 'TSSymbolKeyword':
+      return 'symbol';
+    case 'TSBigIntKeyword':
+      return 'bigint';
     case 'TSArrayType':
       return `${getTypeAnnotation(node.elementType, scriptContent)}[]`;
     case 'TSFunctionType':
@@ -259,9 +311,10 @@ export const getTypeAnnotation = (node: Node, scriptContent: string): string | u
           if (param.type === 'Identifier' && param.typeAnnotation) {
             return `${param.name}: ${getTypeAnnotation(param.typeAnnotation, scriptContent)}`;
           }
-          // return param.name || ''
+          return '';
         })
-        .join(', ');
+        .filter(Boolean)
+        .join(', ')
       const returnType = getTypeAnnotation(node.typeAnnotation!, scriptContent);
       return `(${params}) => ${returnType}`;
     case 'TSLiteralType':
@@ -307,6 +360,11 @@ export const getTypeAnnotation = (node: Node, scriptContent: string): string | u
   }
 }
 
+/**
+ * Parses props from Vue 3 defineProps calls with TypeScript generics
+ * @param scriptContent - Vue script content
+ * @returns Array of prop definitions
+ */
 export const parseProps = (scriptContent: string): PropItem[] => {
   try {
     const plugins: ParserPlugin[] = [
@@ -331,12 +389,11 @@ export const parseProps = (scriptContent: string): PropItem[] => {
             if (typeArg && typeArg.type === 'TSTypeLiteral') {
               typeArg.members.forEach((member) => {
                 if (member.type === 'TSPropertySignature' && member.key.type === 'Identifier') {
-                  console.log("TYPE: ", member.typeAnnotation
-                    ? getTypeAnnotation(member.typeAnnotation, scriptContent)
-                    : undefined)
                   props.push({
                     name: member.key.name,
-                    type: member.typeAnnotation ? scriptContent.slice(member.typeAnnotation.start!, member.typeAnnotation.end!) : undefined,
+                    type: member.typeAnnotation
+                      ? getTypeAnnotation(member.typeAnnotation, scriptContent)
+                      : undefined,
                     required: !(member.optional ?? false),
                   });
                 }
@@ -357,7 +414,9 @@ export const parseProps = (scriptContent: string): PropItem[] => {
               if (member.type === 'TSPropertySignature' && member.key.type === 'Identifier') {
                 props.push({
                   name: member.key.name,
-                  type: member.typeAnnotation ? scriptContent.slice(member.typeAnnotation.start!, member.typeAnnotation.end!) : undefined,
+                  type: member.typeAnnotation
+                    ? getTypeAnnotation(member.typeAnnotation, scriptContent)
+                    : undefined,
                   required: !(member.optional ?? false),
                 });
               }
@@ -369,11 +428,19 @@ export const parseProps = (scriptContent: string): PropItem[] => {
 
     return props;
   } catch (error) {
-    console.log('Error parsing props:', (error as Error).message);
+    console.error('❌ Error parsing props:', (error as Error).message);
+    if (process.env.DEBUG) {
+      console.error('Stack trace:', error);
+    }
     return [];
   }
 }
 
+/**
+ * Analyzes a Vue Single File Component
+ * @param filePath - Path to .vue file
+ * @returns Analysis data including imports, props, template tags, and style classes
+ */
 export const analyzeVueFile = async (filePath: string): Promise<{ imports: ImportItem[]; templateTags: string[], props: PropItem[], styleClasses: Selector[] }> => {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
@@ -395,7 +462,10 @@ export const analyzeVueFile = async (filePath: string): Promise<{ imports: Impor
       styleClasses,
     }
   } catch (error) {
-    console.error(`Error analyzing Vue file ${filePath}:`, (error as Error).message);
+    console.error(`❌ Error analyzing Vue file ${filePath}:`, (error as Error).message);
+    if (process.env.DEBUG) {
+      console.error('Stack trace:', error);
+    }
     return {
       imports: [],
       templateTags: [],
@@ -405,6 +475,11 @@ export const analyzeVueFile = async (filePath: string): Promise<{ imports: Impor
   }
 }
 
+/**
+ * Analyzes a TypeScript file
+ * @param filePath - Path to .ts file
+ * @returns Analysis data including imports and exports
+ */
 export const analyzeTsFiles = async (filePath: string): Promise<{ imports: ImportItem[]; exports: ExportAnalysis }> => {
   try {
     const content = await fs.readFile(filePath, 'utf-8');
@@ -415,7 +490,10 @@ export const analyzeTsFiles = async (filePath: string): Promise<{ imports: Impor
       exports,
     }
   } catch(error) {
-    console.error(`Error analyzing TS file ${filePath}:`, (error as Error).message);
+    console.error(`❌ Error analyzing TS file ${filePath}:`, (error as Error).message);
+    if (process.env.DEBUG) {
+      console.error('Stack trace:', error);
+    }
     return {
       imports: [],
       exports: {
@@ -428,6 +506,11 @@ export const analyzeTsFiles = async (filePath: string): Promise<{ imports: Impor
   }
 }
 
+/**
+ * Analyzes all Vue and TypeScript files in a project directory
+ * @param projectDir - Root directory to analyze
+ * @returns Array of file analyses
+ */
 const analyzeProject = async (projectDir: string): Promise<FileAnalysis[]> => {
   const files = await getAllFiles(projectDir);
   const result: FileAnalysis[] = [];
@@ -462,17 +545,93 @@ const analyzeProject = async (projectDir: string): Promise<FileAnalysis[]> => {
   return result;
 }
 
-const main = async () => {
-  console.log("script start")
-  // let projectDir = process.cwd();
-  let projectDir = '/Users/jakub/dev/weather-app/src/components/';
-  // projectDir = projectDir + '/components';
-  console.log("Project dir: ", projectDir);
-  console.log("Analyzing files...");
-  const analysis = await analyzeProject(projectDir);
-  await fs.writeFile('files-analysis.json', JSON.stringify(analysis, null, 2));
-  console.log('Results saved to files-analysis.json');
-  console.log('Results:', analysis);
+/**
+ * Prints help message for CLI usage
+ */
+const printHelp = () => {
+  console.log(`
+╔════════════════════════════════════════════════════════════╗
+║         AST Vue TypeScript Analyzer v1.0                   ║
+╚════════════════════════════════════════════════════════════╝
+
+Usage:
+  bun run index.ts [directory]
+
+Arguments:
+  directory    Path to analyze (default: current directory)
+
+Examples:
+  bun run index.ts                           # Analyze current directory
+  bun run index.ts ./src/components          # Analyze specific directory
+  bun run index.ts ~/projects/my-vue-app     # Analyze absolute path
+
+Options:
+  --help, -h    Show this help message
+
+Output:
+  Results are saved to files-analysis.json
+
+Environment Variables:
+  DEBUG=1       Enable detailed error output with stack traces
+
+For more information, visit:
+  https://github.com/jakubgania/ast-vue-typescript-analyzer
+  `);
 }
 
-main().catch(err => console.error("Error:", err));
+/**
+ * Main entry point
+ */
+const main = async () => {
+  // Check for help flag
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    printHelp();
+    process.exit(0);
+  }
+
+  console.log('🚀 AST Vue TypeScript Analyzer started');
+  console.log('');
+
+  // Get project directory from CLI argument or use current directory
+  const projectDir = process.argv[2] || process.cwd();
+  
+  console.log('📁 Project directory:', projectDir);
+  console.log('🔍 Analyzing files...');
+  console.log('');
+
+  try {
+    const analysis = await analyzeProject(projectDir);
+
+    await fs.writeFile('files-analysis.json', JSON.stringify(analysis, null, 2));
+
+    console.log('✅ Analysis complete!');
+    console.log('📄 Results saved to files-analysis.json');
+    console.log(`📊 Analyzed ${analysis.length} files(s)`);
+    console.log('');
+
+    // Print summary
+    const vueFiles = analysis.filter(a => a.templateTags.length > 0).length;
+    const tsFiles = analysis.filter(a => a.exports).length;
+
+    console.log('Summary:');
+    console.log(` - Vue components: ${vueFiles}`);
+    console.log(` - TypeScript files: ${tsFiles}`);
+    console.log(` - Total imports: ${analysis.reduce((sum, a) => sum + a.imports.length, 0)}`);
+    console.log(` - Total props: ${analysis.reduce((sum, a) => sum + a.props.length, 0)}`);
+
+  } catch (error) {
+    console.error('');
+    console.error('❌ Fatal error:', (error as Error).message);
+    if (process.env.DEBUG) {
+      console.error('');
+      console.error('Stack trace:');
+      console.error(error);
+    }
+    process.exit(1);
+  }
+}
+
+main().catch(err => {
+  console.error('❌ Unhandled error:', err);
+  process.exit(1);
+});
