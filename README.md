@@ -1,5 +1,37 @@
 # ast-vue-typescript-analyzer
 
+This is a working Vue 3 + TypeScript application that demonstrates all the example components analyzed by the  AST Vue TypeScript Analyzer.
+
+## Purpose
+
+This application serves as:
+
+1. **Visual demonstration** - See all analyzed components working in a real app
+2. **Type safety validation** - Proves all components compile without TypeScript error
+3. **Interactive examples** - Test component functionality and interactions
+
+## Quick Start
+
+### Install Dependencies
+
+```bash
+bun install
+# or
+npm install
+```
+
+### Run Development Server
+
+```bash
+bun run dev
+# or
+nom run dev
+```
+
+Then open [http://localhost:5173](http://localhost:5173) in your browser.
+
+
+
 useful links
 
 [AST Explorer](https://astexplorer.net)  
