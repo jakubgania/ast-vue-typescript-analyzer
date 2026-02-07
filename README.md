@@ -15,6 +15,30 @@ This application serves as:
 **AST (Abstract Syntax Tree)** is a tree representation of the syntactic structure of source code.  
 It allows tools to analyze, transform, and understand code by working with its logical structure rather than raw text.
 
+In simple words: 
+
+Code is text. Compilers need structure. AST is that structure. 
+
+**Example**:
+```js
+const x = 5 + 10;
+```
+Becomes:
+```
+VariableDeclaration
+└── VariableDeclarator
+    ├── Identifier: x
+    └── BinaryExpression: +
+        ├── Literal: 5
+        └── Literal: 10
+```
+
+### Why AST Matters
+- **ESLint**: Finds anti-patterns by walking the AST
+- **Prettier**: Rebuilds code from AST for consistent formatting
+- **TypeScript**: Type checks by analyzing AST nodes
+- **Webpack**: Understands imports/exports for bundling
+
 ## Quick Start
 
 ### Install Dependencies
@@ -37,27 +61,24 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
 
 
-useful links
+## Resources to Link
 
-[AST Explorer](https://astexplorer.net)  
+### Documentation
 
-[Babel Plugin Handbook](https://github.com/jamiebuilds/babel-handbook/blob/master/translations/en/plugin-handbook.md)  
-[Babel User Handbook](https://github.com/jamiebuilds/babel-handbook/blob/master/translations/en/user-handbook.md)  
+- [AST Explorer](https://astexplorer.net) - Interactive AST viewer
+- [Babel Handbook](https://github.com/jamiebuilds/babel-handbook) - Learn AST manipulation
+- [Babel Plugin Handbook](https://github.com/jamiebuilds/babel-handbook/blob/master/translations/en/plugin-handbook.md)  
+- [Babel User Handbook](https://github.com/jamiebuilds/babel-handbook/blob/master/translations/en/user-handbook.md)  
+- [Babel types docs](https://babeljs.io/docs/babel-types)
+- [Vue Compiler SFC](https://github.com/vuejs/core/tree/main/packages/compiler-sfc) - Vue's compiler sfc
+- [Vue Compiler DOM](https://github.com/vuejs/core/tree/main/packages/compiler-dom) - Vue's compiler dom
+- [TypeScript AST Viewer](https://ts-ast-viewer.com) - TypeScript-specific AST
 
-[babel types docs](https://babeljs.io/docs/babel-types)  
+### Videos
+- [What is an AST?](https://www.youtube.com/watch?v=wINY109MG10)
+- [Understanding ASTs](https://www.youtube.com/watch?v=tM_S-pa4xDk)
 
-[en.wikipedia.org/wiki/Abstract_syntax_tree](https://en.wikipedia.org/wiki/Abstract_syntax_tree)
-
-[en.wikipedia.org/wiki/Lexical_analysis](https://en.wikipedia.org/wiki/Lexical_analysis)  
-
-[Parsing](https://en.wikipedia.org/wiki/Parsing)  
-
-[Understand Abstract Syntax Trees - YouTube](https://www.youtube.com/watch?v=tM_S-pa4xDk)  
-
-[What Is An Abstract Syntax Tree - YouTube](https://www.youtube.com/watch?v=wINY109MG10)
-
-[@vue/compiler-sfc GitHub](https://github.com/vuejs/core/tree/main/packages/compiler-sfc)  
-[@vue/compiler-sfc NPM](https://www.npmjs.com/package/@vue/compiler-sfc)
-
-[@vue/compiler-dom GitHub](https://github.com/vuejs/core/tree/main/packages/compiler-dom)  
-[@vue/compiler-dom NPM](https://www.npmjs.com/package/@vue/compiler-dom)
+### Articles
+- [Wikipedia: Abstract Syntax Tree](https://en.wikipedia.org/wiki/Abstract_syntax_tree)
+- [Wikipedia: Lexical Analysis](https://en.wikipedia.org/wiki/Lexical_analysis)
+- [Wikipedia: Parsing](https://en.wikipedia.org/wiki/Parsing)
