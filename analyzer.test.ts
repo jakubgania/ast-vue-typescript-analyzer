@@ -1174,6 +1174,32 @@ describe('AST Vue TypeScript Analyzer', () => {
       expect(result.exports.constants.length).toBeGreaterThan(0);
     });
 
-    
+    /**
+     * Test Suite: Integration Tests
+     * 
+     * Purpose:
+     * Tests that all analyzer functions work correctly together on realistic,
+     * complex Vue components.
+     * 
+     * Why this is important:
+     * - Individual unit tests verify isolated functionality
+     * - Integration tests verify the ENTIRE SYSTEM works end-to-end
+     * - Real components are complex with multiple interacting features
+     * - Ensures that combining multiple parsing operations doesn't cause issues
+     * - Validates realistic use cases taht user will actually encounter
+     * - Catches bugs taht only appear when features interact
+     * - Provides confidence taht the analyzer works on production code
+     * 
+     * What we're testing:
+     * 1. A complex component with ALL features:
+     *    - Multiple imports (Vue, custom types)
+     *    - Complex props (optional, unions, generics)
+     *    - Rich templates (multiple tags, directives, slots)
+     *    - Multiple style classes
+     *    - Emit definitions
+     *    - Computed properties
+     * 2. Verification that ALL parsing functions produce correct output
+     * 3. Realistic component structure that mirrors production code
+     */
   })
 })
