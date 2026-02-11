@@ -1201,5 +1201,162 @@ describe('AST Vue TypeScript Analyzer', () => {
      * 2. Verification that ALL parsing functions produce correct output
      * 3. Realistic component structure that mirrors production code
      */
+    describe('Integration Tests', () => {
+      it('should handle complex Vue component with all features', async () => {
+        const complexComponent = `
+          <template>
+            <div class="card" :class="cardClass">
+              <header class="card-header">
+                <h2>{{ title }}</h2>
+                <button @click="handleClose">×</button>
+              </header>
+              <section class="card-body">
+                <slot></slot>
+              </section>
+              <footer v-if="showFooter" class="card-footer">
+                <button @click="handleSave">Save</button>
+              </footer>
+            </div>
+          </template>
+
+          <script setup lang="ts">
+          import { computed, ref } from 'vue';
+          import type { CardVariant } from './types';
+
+          interface Props {
+            title: string;
+            variant?: CardVariant;
+            closable?: boolean;
+            showFooter?: boolean;
+          }
+
+          const props = defineProps<Props>();
+          const emit = defineEmits<{
+            close: [];
+            save: [data: string];
+          }>();
+
+          const cardClass = computed(() => ({
+            ['card-' + props.variant]: !!props.variant
+          }));
+
+          const handleClose = () => emit('close');
+          const handleSave = () => emit('save', 'data');
+          </script>
+
+          <style scoped>
+          .card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+          }
+
+          .card-header {
+            padding: 1rem;
+            background: #f5f5f5;
+          }
+
+          .card-body {
+            padding: 1rem;
+          }
+
+          .card-footer {
+            padding: 1rem;
+            border-top: 1px solid #ddd;
+          }
+
+          .card-header button:hover {
+            color: red;
+          }
+          </style>
+        `;
+
+        const mockDescriptor = {
+          script: null,
+          scriptSetup: {
+            content: `
+              import { computed, ref } from 'vue';
+              import type { CardVariant } from './types';
+
+              const props = defineProps<{
+                title: string;
+                variant?: CardVariant;
+                closable?: boolean;
+                showFooter?: boolean;
+              }>();
+
+              const emit = defineEmits<{
+                close: [];
+                save: [data: string];
+              }>();
+
+              const cardClass = computed(() => ({
+                ['card-' + props.variant]: !!props.variant
+              }));
+
+              const handleClose = () => emit('close');
+              const handleSave = () => emit('save', 'data');
+            `
+          },
+          template: {
+            content: `
+              <div class="card" :class="cardClass">
+                <header class="card-header">
+                  <h2>{{ title }}</h2>
+                  <button @click="handleClose">×</button>
+                </header>
+                <section class="card-body">
+                  <slot></slot>
+                </section>
+                <footer v-if="showFooter" class="card-footer">
+                  <button @click="handleSave">Save</button>
+                </footer>
+              </div>
+            `
+          },
+          styles: [{
+            content: `
+              .card { border: 1px solid #ddd; }
+              .card-header { padding: 1rem; }
+              .card-body { padding: 1rem; }
+              .card-footer { padding: 1rem; }
+              .card-header button:hover { color: red; }
+            `
+          }]
+        };
+
+        (fs.readFile as jest.Mock).mockResolvedValue(complexComponent);
+        (vueParse as jest.Mock).mockReturnValue({ descriptor: mockDescriptor });
+
+        const result = await analyzeVueFile('/Card.vue');
+
+        // Verify imports
+        expect(result.imports).toContainEqual({ importedItems: 'computed', source: 'vue' });
+        expect(result.imports).toContainEqual({ importedItem: 'ref', source: 'vue' });
+        expect(result.imports).toContainEqual({ importedItem: 'CardVariant', source: './types' });
+
+        //Verify template tags
+        expect(result.templateTags).toContain('div');
+        expect(result.templateTags).toContain('header');
+        expect(result.templateTags).toContain('h2');
+        expect(result.templateTags).toContain('button');
+        expect(result.templateTags).toContain('section');
+        expect(result.templateTags).toContain('footer');
+        expect(result.templateTags).toContain('slot');
+
+        // Verify props
+        expect(result.props.length).toBeGreaterThan(0);
+        const titleProp = result.props.find(p => p.name === 'title');
+        expect(titleProp).toBeDefined();
+        expect(titleProp?.required).toBe(true);
+
+        // Verify style classes
+        expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card' });
+        expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-header' });
+        expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-body' });
+        expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-footer' });
+      });
+    });
+
+    
   })
 })
