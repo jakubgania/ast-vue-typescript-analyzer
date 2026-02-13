@@ -714,6 +714,13 @@ describe('AST Vue TypeScript Analyzer', () => {
       expect(result).toContain('danger');
     });
 
+    it('should handle intersection types', () => {
+      const code = '{ a: string } & { b: number }';
+      const node = createTypeNode(code);
+      const result = getTypeAnnotation(node!, `const x: ${code} = null`);
+      expect(result).toContain('&');
+    });
+
     it('should handle generic types', () => {
       const code = 'Array<string>';
       const node = createTypeNode(code);
@@ -828,6 +835,21 @@ describe('AST Vue TypeScript Analyzer', () => {
       });
     });
 
+    it('should parse union type props', () => {
+      const script = `
+        defineProps<{
+          variant: 'primary' | 'secondary' | 'danger';
+        }>();
+      `;
+      const result = parseProps(script);
+
+      expect(result[0]?.name).toBe('variant');
+      expect(result[0]?.type).toContain('primary');
+      expect(result[0]?.type).toContain('secondary');
+      expect(result[0]?.type).toContain('danger');
+      expect(result[0]?.type).toContain('|');
+    });
+
     it('should parse array type props', () => {
       const script = `
         defineProps<{
@@ -848,6 +870,19 @@ describe('AST Vue TypeScript Analyzer', () => {
         type: 'number[]',
         required: true
       });
+    });
+
+    it('should parse generic type props', () => {
+      const script = `
+        defineProps<{
+          data: Array<User>;
+        }>();
+      `;
+      const result = parseProps(script);
+
+      expect(result[0]?.name).toBe('data');
+      expect(result[0]?.type).toContain('Array');
+      expect(result[0]?.type).toContain('User');
     });
 
     it('should parse object literal type props', () => {
@@ -885,6 +920,23 @@ describe('AST Vue TypeScript Analyzer', () => {
       const result = parseProps(script);
 
       expect(result).toEqual([]);
+    });
+
+    it('should handle no defineProps', () => {
+      const script = `const x = 5;`;
+      const result = parseProps(script);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should handle parse errors gracefully', () => {
+      const script = 'defineProps<invalid syntax>';
+      const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = parseProps(script);
+
+      expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalled();
     });
 
     it('should handle complex nested types', () => {
@@ -1174,38 +1226,133 @@ describe('AST Vue TypeScript Analyzer', () => {
       expect(result.exports.functions.length).toBeGreaterThan(0);
       expect(result.exports.constants.length).toBeGreaterThan(0);
     });
+  });
 
-    /**
-     * Test Suite: Integration Tests
-     * 
-     * Purpose:
-     * Tests that all analyzer functions work correctly together on realistic,
-     * complex Vue components.
-     * 
-     * Why this is important:
-     * - Individual unit tests verify isolated functionality
-     * - Integration tests verify the ENTIRE SYSTEM works end-to-end
-     * - Real components are complex with multiple interacting features
-     * - Ensures that combining multiple parsing operations doesn't cause issues
-     * - Validates realistic use cases taht user will actually encounter
-     * - Catches bugs taht only appear when features interact
-     * - Provides confidence taht the analyzer works on production code
-     * 
-     * What we're testing:
-     * 1. A complex component with ALL features:
-     *    - Multiple imports (Vue, custom types)
-     *    - Complex props (optional, unions, generics)
-     *    - Rich templates (multiple tags, directives, slots)
-     *    - Multiple style classes
-     *    - Emit definitions
-     *    - Computed properties
-     * 2. Verification that ALL parsing functions produce correct output
-     * 3. Realistic component structure that mirrors production code
-     */
-    describe('Integration Tests', () => {
-      it('should handle complex Vue component with all features', async () => {
-        const complexComponent = `
-          <template>
+  /**
+   * Test Suite: Integration Tests
+   * 
+   * Purpose:
+   * Tests that all analyzer functions work correctly together on realistic,
+   * complex Vue components.
+   * 
+   * Why this is important:
+   * - Individual unit tests verify isolated functionality
+   * - Integration tests verify the ENTIRE SYSTEM works end-to-end
+   * - Real components are complex with multiple interacting features
+   * - Ensures that combining multiple parsing operations doesn't cause issues
+   * - Validates realistic use cases taht user will actually encounter
+   * - Catches bugs taht only appear when features interact
+   * - Provides confidence taht the analyzer works on production code
+   * 
+   * What we're testing:
+   * 1. A complex component with ALL features:
+   *    - Multiple imports (Vue, custom types)
+   *    - Complex props (optional, unions, generics)
+   *    - Rich templates (multiple tags, directives, slots)
+   *    - Multiple style classes
+   *    - Emit definitions
+   *    - Computed properties
+   * 2. Verification that ALL parsing functions produce correct output
+   * 3. Realistic component structure that mirrors production code
+   */
+  describe('Integration Tests', () => {
+    it('should handle complex Vue component with all features', async () => {
+      const complexComponent = `
+        <template>
+          <div class="card" :class="cardClass">
+            <header class="card-header">
+              <h2>{{ title }}</h2>
+              <button @click="handleClose">×</button>
+            </header>
+            <section class="card-body">
+              <slot></slot>
+            </section>
+            <footer v-if="showFooter" class="card-footer">
+              <button @click="handleSave">Save</button>
+            </footer>
+          </div>
+        </template>
+
+        <script setup lang="ts">
+        import { computed, ref } from 'vue';
+        import type { CardVariant } from './types';
+
+        interface Props {
+          title: string;
+          variant?: CardVariant;
+          closable?: boolean;
+          showFooter?: boolean;
+        }
+
+        const props = defineProps<Props>();
+        const emit = defineEmits<{
+          close: [];
+          save: [data: string];
+        }>();
+
+        const cardClass = computed(() => ({
+          ['card-' + props.variant]: !!props.variant
+        }));
+
+        const handleClose = () => emit('close');
+        const handleSave = () => emit('save', 'data');
+        </script>
+
+        <style scoped>
+        .card {
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+
+        .card-header {
+          padding: 1rem;
+          background: #f5f5f5;
+        }
+
+        .card-body {
+          padding: 1rem;
+        }
+
+        .card-footer {
+          padding: 1rem;
+          border-top: 1px solid #ddd;
+        }
+
+        .card-header button:hover {
+          color: red;
+        }
+        </style>
+      `;
+
+      const mockDescriptor = {
+        script: null,
+        scriptSetup: {
+          content: `
+            import { computed, ref } from 'vue';
+            import type { CardVariant } from './types';
+
+            const props = defineProps<{
+              title: string;
+              variant?: CardVariant;
+              closable?: boolean;
+              showFooter?: boolean;
+            }>();
+
+            const emit = defineEmits<{
+              close: [];
+              save: [data: string];
+            }>();
+
+            const cardClass = computed(() => ({
+              ['card-' + props.variant]: !!props.variant
+            }));
+
+            const handleClose = () => emit('close');
+            const handleSave = () => emit('save', 'data');
+          `
+        },
+        template: {
+          content: `
             <div class="card" :class="cardClass">
               <header class="card-header">
                 <h2>{{ title }}</h2>
@@ -1218,239 +1365,144 @@ describe('AST Vue TypeScript Analyzer', () => {
                 <button @click="handleSave">Save</button>
               </footer>
             </div>
-          </template>
+          `
+        },
+        styles: [{
+          content: `
+            .card { border: 1px solid #ddd; }
+            .card-header { padding: 1rem; }
+            .card-body { padding: 1rem; }
+            .card-footer { padding: 1rem; }
+            .card-header button:hover { color: red; }
+          `
+        }]
+      };
 
-          <script setup lang="ts">
-          import { computed, ref } from 'vue';
-          import type { CardVariant } from './types';
+      (fs.readFile as jest.Mock).mockResolvedValue(complexComponent);
+      (vueParse as jest.Mock).mockReturnValue({ descriptor: mockDescriptor });
 
-          interface Props {
-            title: string;
-            variant?: CardVariant;
-            closable?: boolean;
-            showFooter?: boolean;
-          }
+      const result = await analyzeVueFile('/Card.vue');
 
-          const props = defineProps<Props>();
-          const emit = defineEmits<{
-            close: [];
-            save: [data: string];
-          }>();
+      // Verify imports
+      expect(result.imports).toContainEqual({ importedItem: 'computed', source: 'vue' });
+      expect(result.imports).toContainEqual({ importedItem: 'ref', source: 'vue' });
+      expect(result.imports).toContainEqual({ importedItem: 'CardVariant', source: './types' });
 
-          const cardClass = computed(() => ({
-            ['card-' + props.variant]: !!props.variant
-          }));
+      //Verify template tags
+      expect(result.templateTags).toContain('div');
+      expect(result.templateTags).toContain('header');
+      expect(result.templateTags).toContain('h2');
+      expect(result.templateTags).toContain('button');
+      expect(result.templateTags).toContain('section');
+      expect(result.templateTags).toContain('footer');
+      expect(result.templateTags).toContain('slot');
 
-          const handleClose = () => emit('close');
-          const handleSave = () => emit('save', 'data');
-          </script>
+      // Verify props
+      expect(result.props.length).toBeGreaterThan(0);
+      const titleProp = result.props.find(p => p.name === 'title');
+      expect(titleProp).toBeDefined();
+      expect(titleProp?.required).toBe(true);
 
-          <style scoped>
-          .card {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-          }
+      // Verify style classes
+      expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card' });
+      expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-header' });
+      expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-body' });
+      expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-footer' });
+    });
+  });
 
-          .card-header {
-            padding: 1rem;
-            background: #f5f5f5;
-          }
+  /**
+   * Test Suite: Edge Cases
+   * 
+   * Purpose:
+   * Tests unusual but valid scenarios that could break the analyzer.
+   * 
+   * Why this is important:
+   * - Real-world code often contains edge cases taht aren't in typical examples
+   * - Edge cases are where bugs most commonly hide
+   * - Production code can be messy, complex or use advanced TypeScript features
+   * - Must handle unusual but valid TypeScript syntax without crashing
+   * - Demonstrates robustness and production-readiness
+   * - Helps prevent runtime errors when analyzing diverse codebases
+   * 
+   * What we're testing:
+   * 1. Very long union types (10+ options)
+   * 2. Deeply nested object types (3+ levels deep)
+   * 3. Unicode characters in code (internationalization)
+   * 4. Very large files (100+ exports)
+   * 5. Circular/recursive type references
+   * 
+   * These scenarios test the limit and robustness of the parser.
+   */
+  describe('Edge Cases', () => {
+    it('should handle very long type unions', () => {
+      const script = `
+        defineProps<{
+          status: 'draft' | 'pending' | 'approved' | 'rejected' | 'archived' | 'deleted';
+        }>();
+      `;
+      const result = parseProps(script);
 
-          .card-body {
-            padding: 1rem;
-          }
-
-          .card-footer {
-            padding: 1rem;
-            border-top: 1px solid #ddd;
-          }
-
-          .card-header button:hover {
-            color: red;
-          }
-          </style>
-        `;
-
-        const mockDescriptor = {
-          script: null,
-          scriptSetup: {
-            content: `
-              import { computed, ref } from 'vue';
-              import type { CardVariant } from './types';
-
-              const props = defineProps<{
-                title: string;
-                variant?: CardVariant;
-                closable?: boolean;
-                showFooter?: boolean;
-              }>();
-
-              const emit = defineEmits<{
-                close: [];
-                save: [data: string];
-              }>();
-
-              const cardClass = computed(() => ({
-                ['card-' + props.variant]: !!props.variant
-              }));
-
-              const handleClose = () => emit('close');
-              const handleSave = () => emit('save', 'data');
-            `
-          },
-          template: {
-            content: `
-              <div class="card" :class="cardClass">
-                <header class="card-header">
-                  <h2>{{ title }}</h2>
-                  <button @click="handleClose">×</button>
-                </header>
-                <section class="card-body">
-                  <slot></slot>
-                </section>
-                <footer v-if="showFooter" class="card-footer">
-                  <button @click="handleSave">Save</button>
-                </footer>
-              </div>
-            `
-          },
-          styles: [{
-            content: `
-              .card { border: 1px solid #ddd; }
-              .card-header { padding: 1rem; }
-              .card-body { padding: 1rem; }
-              .card-footer { padding: 1rem; }
-              .card-header button:hover { color: red; }
-            `
-          }]
-        };
-
-        (fs.readFile as jest.Mock).mockResolvedValue(complexComponent);
-        (vueParse as jest.Mock).mockReturnValue({ descriptor: mockDescriptor });
-
-        const result = await analyzeVueFile('/Card.vue');
-
-        // Verify imports
-        expect(result.imports).toContainEqual({ importedItem: 'computed', source: 'vue' });
-        expect(result.imports).toContainEqual({ importedItem: 'ref', source: 'vue' });
-        expect(result.imports).toContainEqual({ importedItem: 'CardVariant', source: './types' });
-
-        //Verify template tags
-        expect(result.templateTags).toContain('div');
-        expect(result.templateTags).toContain('header');
-        expect(result.templateTags).toContain('h2');
-        expect(result.templateTags).toContain('button');
-        expect(result.templateTags).toContain('section');
-        expect(result.templateTags).toContain('footer');
-        expect(result.templateTags).toContain('slot');
-
-        // Verify props
-        expect(result.props.length).toBeGreaterThan(0);
-        const titleProp = result.props.find(p => p.name === 'title');
-        expect(titleProp).toBeDefined();
-        expect(titleProp?.required).toBe(true);
-
-        // Verify style classes
-        expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card' });
-        expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-header' });
-        expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-body' });
-        expect(result.styleClasses).toContainEqual({ type: 'class', name: '.card-footer' });
-      });
+      expect(result[0]?.type).toContain('draft');
+      expect(result[0]?.type).toContain('deleted');
     });
 
-    /**
-     * Test Suite: Edge Cases
-     * 
-     * Purpose:
-     * Tests unusual but valid scenarios that could break the analyzer.
-     * 
-     * Why this is important:
-     * - Real-world code often contains edge cases taht aren't in typical examples
-     * - Edge cases are where bugs most commonly hide
-     * - Production code can be messy, complex or use advanced TypeScript features
-     * - Must handle unusual but valid TypeScript syntax without crashing
-     * - Demonstrates robustness and production-readiness
-     * - Helps prevent runtime errors when analyzing diverse codebases
-     * 
-     * What we're testing:
-     * 1. Very long union types (10+ options)
-     * 2. Deeply nested object types (3+ levels deep)
-     * 3. Unicode characters in code (internationalization)
-     * 4. Very large files (100+ exports)
-     * 5. Circular/recursive type references
-     * 
-     * These scenarios test the limit and robustness of the parser.
-     */
-    describe('Edge Cases', () => {
-      it('should handle very long type unions', () => {
-        const script = `
-          defineProps<{
-            status: 'draft' | 'pending' | 'approved' | 'rejected' | 'archived' | 'deleted';
-          }>();
-        `;
-        const result = parseProps(script);
-
-        expect(result[0]?.type).toContain('draft');
-        expect(result[0]?.type).toContain('deleted');
-      });
-
-      it('should handle deeply nested object types', () => {
-        const script = `
-          defineProps<{
-            config: {
-              api: {
-                url: string;
-                timeout: number;
-              };
+    it('should handle deeply nested object types', () => {
+      const script = `
+        defineProps<{
+          config: {
+            api: {
+              url: string;
+              timeout: number;
             };
-          }>();
-        `;
-        const result = parseProps(script);
+          };
+        }>();
+      `;
+      const result = parseProps(script);
 
-        expect(result[0]?.name).toBe('config');
-        expect(result[0]?.type).toBeTruthy();
-      });
-
-      it('should handle files with unicode characters', async () => {
-        const mockContent = `
-          export const message = '你好世界';
-          export const emoji = '🚀';
-        `;
-
-        (fs.readFile as jest.Mock).mockResolvedValue(mockContent);
-        
-        const result = await analyzeTsFiles('/unicode.ts');
-        
-        expect(result.exports.constants).toContain('message');
-        expect(result.exports.constants).toContain('emoji');
-      });
-
-      it('should handle very large files efficiently', async () => {
-        // Generate a large TypeScript file
-        const largeContent = `
-          ${Array.from({ length: 100 }, (_, i) => `export const var${i} = ${i};`).join('\n')}
-        `;
-        (fs.readFile as jest.Mock).mockResolvedValue(largeContent);
-  
-        const result = await analyzeTsFiles('/large.ts');
-  
-        expect(result.exports.constants.length).toBe(100);
-      });
-
-      it('should handle circular type references', () => {
-        const script = `
-          defineProps<{
-            node: {
-              value: string;
-              next?: Node;
-            };
-          }>();
-        `;
-        const result = parseProps(script);
-  
-        expect(result[0]?.name).toBe('node');
-        expect(result[0]?.type).toBeTruthy();
-      });
+      expect(result[0]?.name).toBe('config');
+      expect(result[0]?.type).toBeTruthy();
     });
-  })
-})
+
+    it('should handle files with unicode characters', async () => {
+      const mockContent = `
+        export const message = '你好世界';
+        export const emoji = '🚀';
+      `;
+
+      (fs.readFile as jest.Mock).mockResolvedValue(mockContent);
+      
+      const result = await analyzeTsFiles('/unicode.ts');
+      
+      expect(result.exports.constants).toContain('message');
+      expect(result.exports.constants).toContain('emoji');
+    });
+
+    it('should handle very large files efficiently', async () => {
+      // Generate a large TypeScript file
+      const largeContent = `
+        ${Array.from({ length: 100 }, (_, i) => `export const var${i} = ${i};`).join('\n')}
+      `;
+      (fs.readFile as jest.Mock).mockResolvedValue(largeContent);
+
+      const result = await analyzeTsFiles('/large.ts');
+
+      expect(result.exports.constants.length).toBe(100);
+    });
+
+    it('should handle circular type references', () => {
+      const script = `
+        defineProps<{
+          node: {
+            value: string;
+            next?: Node;
+          };
+        }>();
+      `;
+      const result = parseProps(script);
+
+      expect(result[0]?.name).toBe('node');
+      expect(result[0]?.type).toBeTruthy();
+    });
+  });
+});
