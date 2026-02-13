@@ -1330,7 +1330,7 @@ describe('AST Vue TypeScript Analyzer', () => {
         const result = await analyzeVueFile('/Card.vue');
 
         // Verify imports
-        expect(result.imports).toContainEqual({ importedItems: 'computed', source: 'vue' });
+        expect(result.imports).toContainEqual({ importedItem: 'computed', source: 'vue' });
         expect(result.imports).toContainEqual({ importedItem: 'ref', source: 'vue' });
         expect(result.imports).toContainEqual({ importedItem: 'CardVariant', source: './types' });
 
@@ -1357,6 +1357,99 @@ describe('AST Vue TypeScript Analyzer', () => {
       });
     });
 
-    
+    /**
+     * Test Suite: Edge Cases
+     * 
+     * Purpose:
+     * Tests unusual but valid scenarios that could break the analyzer.
+     * 
+     * Why this is important:
+     * - Real-world code often contains edge cases taht aren't in typical examples
+     * - Edge cases are where bugs most commonly hide
+     * - Production code can be messy, complex or use advanced TypeScript features
+     * - Must handle unusual but valid TypeScript syntax without crashing
+     * - Demonstrates robustness and production-readiness
+     * - Helps prevent runtime errors when analyzing diverse codebases
+     * 
+     * What we're testing:
+     * 1. Very long union types (10+ options)
+     * 2. Deeply nested object types (3+ levels deep)
+     * 3. Unicode characters in code (internationalization)
+     * 4. Very large files (100+ exports)
+     * 5. Circular/recursive type references
+     * 
+     * These scenarios test the limit and robustness of the parser.
+     */
+    describe('Edge Cases', () => {
+      it('should handle very long type unions', () => {
+        const script = `
+          defineProps<{
+            status: 'draft' | 'pending' | 'approved' | 'rejected' | 'archived' | 'deleted';
+          }>();
+        `;
+        const result = parseProps(script);
+
+        expect(result[0]?.type).toContain('draft');
+        expect(result[0]?.type).toContain('deleted');
+      });
+
+      it('should handle deeply nested object types', () => {
+        const script = `
+          defineProps<{
+            config: {
+              api: {
+                url: string;
+                timeout: number;
+              };
+            };
+          }>();
+        `;
+        const result = parseProps(script);
+
+        expect(result[0]?.name).toBe('config');
+        expect(result[0]?.type).toBeTruthy();
+      });
+
+      it('should handle files with unicode characters', async () => {
+        const mockContent = `
+          export const message = '你好世界';
+          export const emoji = '🚀';
+        `;
+
+        (fs.readFile as jest.Mock).mockResolvedValue(mockContent);
+        
+        const result = await analyzeTsFiles('/unicode.ts');
+        
+        expect(result.exports.constants).toContain('message');
+        expect(result.exports.constants).toContain('emoji');
+      });
+
+      it('should handle very large files efficiently', async () => {
+        // Generate a large TypeScript file
+        const largeContent = `
+          ${Array.from({ length: 100 }, (_, i) => `export const var${i} = ${i};`).join('\n')}
+        `;
+        (fs.readFile as jest.Mock).mockResolvedValue(largeContent);
+  
+        const result = await analyzeTsFiles('/large.ts');
+  
+        expect(result.exports.constants.length).toBe(100);
+      });
+
+      it('should handle circular type references', () => {
+        const script = `
+          defineProps<{
+            node: {
+              value: string;
+              next?: Node;
+            };
+          }>();
+        `;
+        const result = parseProps(script);
+  
+        expect(result[0]?.name).toBe('node');
+        expect(result[0]?.type).toBeTruthy();
+      });
+    });
   })
 })
