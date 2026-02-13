@@ -316,18 +316,19 @@ describe('AST Vue TypeScript Analyzer', () => {
 
   /**
    * Test Suite: parseImports
-   * 
+   *
    * Purpose:
-   * Tests the extraction of import statements from TypeScript/JavaScript code.
-   * 
-   * Why this is important:
+   * Tests the extraction of import statements from JavaScript/TypeScript code.
+   *
+   * Why This Is Important:
    * - Import analysis is fundamental for understanding module dependencies
    * - Helps detect unused imports and circular dependencies
    * - Critical for building dependency graphs
-   * - Enable dead code elimination and tree shaking optimizations
+   * - Enables dead code elimination and tree shaking optimizations
    * - Used to track which external libraries and local modules are being used
-   * 
-   * What we're testing:
+   * - Helps in refactoring by showing all dependencies that need updating
+   *
+   * What We're Testing:
    * 1. Named imports (import { x } from 'y')
    * 2. Default imports (import X from 'y')
    * 3. Namespace imports (import * as X from 'y')
@@ -409,23 +410,23 @@ describe('AST Vue TypeScript Analyzer', () => {
 
   /**
    * Test Suite: extractTagsFromTemplate
-   * 
+   *
    * Purpose:
-   * Test the extraction of HTML/component tags from Vue template sections.
-   * 
-   * Why this is important:
-   * - Helps understand component composition and structure 
+   * Tests the extraction of HTML/component tags from Vue template sections.
+   *
+   * Why This Is Important:
+   * - Helps understand component composition and structure
    * - Identifies which child components are being used
    * - Can detect unused components
    * - Critical for dependency analysis in Vue applications
    * - Helps validate that all used components are imported
    * - Enables automated documentation of component relationships
    * - Used to build component dependency trees
-   * 
-   * What we're testing:
+   *
+   * What We're Testing:
    * 1. Basic HTML tags (div, span, p)
    * 2. Custom Vue components (PascalCase and kebab-case)
-   * 3. Selc-closing tags
+   * 3. Self-closing tags
    * 4. Deduplication (same tag used multiple times)
    * 5. Nested component structures
    * 6. Edge cases (empty templates, text-only content)
